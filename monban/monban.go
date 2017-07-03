@@ -10,9 +10,17 @@ import (
 	"github.com/kusubooru/shimmie"
 )
 
+const (
+	defaultMonbanIssuer         = "monban"
+	defaultAccessTokenDuration  = 15 * time.Minute
+	defaultRefreshTokenDuration = 72 * time.Hour
+)
+
 var (
 	// ErrWrongCredentials is returned when credentials do not match.
 	ErrWrongCredentials = errors.New("wrong username or password")
+	// ErrInvalidToken is returned when a refresh token is invalid.
+	ErrInvalidToken = errors.New("invalid token")
 )
 
 // Token is the result of successful authentication and contains access and
@@ -52,7 +60,55 @@ func (s *authService) Login(username, password string) (*Token, error) {
 		}
 		return nil, fmt.Errorf("verify failed: %v", err)
 	}
+	token, err := createTokens(defaultMonbanIssuer, defaultAccessTokenDuration, defaultRefreshTokenDuration, s.secret)
+	if err != nil {
+		return nil, err
+	}
 
+	return token, nil
+}
+
+func (s *authService) Refresh(refreshToken string) (*Token, error) {
+	if refreshToken == "" {
+		return nil, ErrInvalidToken
+	}
+
+	tok, valid, err := jwt.Decode(refreshToken, []byte(s.secret))
+	if err != nil {
+		if err == jwt.ErrInvalidToken {
+			return nil, ErrInvalidToken
+		}
+		return nil, err
+	}
+	if !valid {
+		return nil, ErrInvalidToken
+	}
+
+	ok := verifyToken(tok)
+	if !ok {
+		return nil, ErrInvalidToken
+	}
+
+	// TODO: Check db
+
+	token, err := createTokens(defaultMonbanIssuer, defaultAccessTokenDuration, defaultRefreshTokenDuration, s.secret)
+	if err != nil {
+		return nil, err
+	}
+	return token, nil
+}
+
+func verifyToken(t *jwt.Token) bool {
+	if t.Issuer != defaultMonbanIssuer {
+		return false
+	}
+	if t.Duration != defaultRefreshTokenDuration {
+		return false
+	}
+	return true
+}
+
+func createTokens(issuer string, accessTokenDuration, refreshTokenDuration time.Duration, secret string) (*Token, error) {
 	// Create CSRF token.
 	// TODO: Is CSRF token needed?
 	csrfToken, err := csrf.NewToken()
@@ -65,10 +121,11 @@ func (s *authService) Login(username, password string) (*Token, error) {
 	userID := jwt.NewUUID()
 	accessToken := &jwt.Token{
 		Subject:  userID,
-		Duration: time.Duration(15 * time.Minute),
+		Issuer:   issuer,
+		Duration: accessTokenDuration,
 		CSRF:     csrfToken,
 	}
-	signedAccessToken, err := jwt.Encode(accessToken, []byte(s.secret))
+	signedAccessToken, err := jwt.Encode(accessToken, []byte(secret))
 	if err != nil {
 		return nil, fmt.Errorf("access token creation failed: %v", err)
 	}
@@ -79,10 +136,11 @@ func (s *authService) Login(username, password string) (*Token, error) {
 	refreshToken := &jwt.Token{
 		ID:       refreshTokenID,
 		Subject:  userID,
-		Duration: time.Duration(72 * time.Hour),
+		Issuer:   issuer,
+		Duration: refreshTokenDuration,
 		CSRF:     csrfToken,
 	}
-	signedRefreshToken, err := jwt.Encode(refreshToken, []byte(s.secret))
+	signedRefreshToken, err := jwt.Encode(refreshToken, []byte(secret))
 	if err != nil {
 		return nil, fmt.Errorf("refresh token creation failed: %v", err)
 	}
@@ -94,8 +152,4 @@ func (s *authService) Login(username, password string) (*Token, error) {
 		Refresh: signedRefreshToken,
 	}
 	return token, nil
-}
-
-func (s *authService) Refresh(refreshToken string) (*Token, error) {
-	return nil, fmt.Errorf("not implemented")
 }

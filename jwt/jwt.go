@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,18 +18,20 @@ type Token struct {
 	CSRF     string
 }
 
+type myCustomClaims struct {
+	CSRF string `json:"csrf,omitempty"`
+	jwt.StandardClaims
+}
+
 // Encode encodes and signs a JWT token.
 func Encode(t *Token, secret []byte) (string, error) {
-	type MyCustomClaims struct {
-		CSRF string `json:"csrf,omitempty"`
-		jwt.StandardClaims
-	}
 
-	claims := MyCustomClaims{
+	now := time.Now()
+	claims := myCustomClaims{
 		CSRF: t.CSRF,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: time.Now().Add(t.Duration).Unix(),
-			IssuedAt:  time.Now().Unix(),
+			ExpiresAt: now.Add(t.Duration).Unix(),
+			IssuedAt:  now.Unix(),
 			Issuer:    t.Issuer,
 			Subject:   t.Subject,
 			Id:        t.ID,
@@ -41,6 +44,52 @@ func Encode(t *Token, secret []byte) (string, error) {
 		return "", fmt.Errorf("sign token failed: %v", err)
 	}
 	return ss, nil
+}
+
+var (
+	// ErrInvalidToken returned by Decode when the token is invalid.
+	ErrInvalidToken = errors.New("invalid token")
+)
+
+// Decode parses a token from a string format and returns a Token struct.
+func Decode(t string, secret []byte) (*Token, bool, error) {
+	parsedToken, err := jwt.ParseWithClaims(t, &myCustomClaims{}, func(token *jwt.Token) (interface{}, error) {
+		// Make sure token's signature wasn't changed.
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected siging method")
+		}
+		return secret, nil
+	})
+	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorMalformed != 0 {
+				return nil, false, ErrInvalidToken
+			} else if ve.Errors&(jwt.ValidationErrorExpired|jwt.ValidationErrorNotValidYet) != 0 {
+				// Token is either expired or not active yet.
+				return nil, false, ErrInvalidToken
+			} else {
+				return nil, false, fmt.Errorf("could not handle this token: %v", err)
+			}
+		}
+		return nil, false, fmt.Errorf("failed to decode claims: %v", err)
+	}
+	claims, ok := parsedToken.Claims.(*myCustomClaims)
+	if !ok {
+		return nil, parsedToken.Valid, fmt.Errorf("failed to decode custom claims")
+	}
+	sc := claims.StandardClaims
+	issuedAt := time.Unix(sc.IssuedAt, 0)
+	expiredAt := time.Unix(sc.ExpiresAt, 0)
+	duration := expiredAt.Sub(issuedAt)
+
+	token := &Token{
+		CSRF:     claims.CSRF,
+		ID:       sc.Id,
+		Issuer:   sc.Issuer,
+		Subject:  sc.Subject,
+		Duration: duration,
+	}
+	return token, parsedToken.Valid, nil
 }
 
 // NewUUID provides a new UUID.

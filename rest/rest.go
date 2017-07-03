@@ -86,6 +86,33 @@ func (s *server) handleLogin(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
+type refreshReq struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type refreshResp struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+}
+
 func (s *server) handleRefresh(w http.ResponseWriter, r *http.Request) error {
-	return E(nil, http.StatusText(http.StatusNotImplemented), http.StatusNotImplemented)
+	if r.Method != "POST" {
+		return E(nil, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
+	}
+	req := new(refreshReq)
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		return E(err, "expecting refresh token", http.StatusBadRequest)
+	}
+	tok, err := s.auth.Refresh(req.RefreshToken)
+	if err != nil {
+		if err == monban.ErrInvalidToken {
+			return E(err, "invalid token", http.StatusUnauthorized)
+		}
+		return E(err, "refresh failed", http.StatusInternalServerError)
+	}
+	resp := &loginResp{AccessToken: tok.Access, RefreshToken: tok.Refresh}
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		return E(err, "refresh response encode failed", http.StatusInternalServerError)
+	}
+	return nil
 }

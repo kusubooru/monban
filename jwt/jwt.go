@@ -9,13 +9,16 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// Token is a JWT Token.
+// Token is a JSON Web Token.
 type Token struct {
-	ID       string
-	Issuer   string
-	Subject  string
-	Duration time.Duration
-	CSRF     string
+	ID        string
+	Issuer    string
+	Subject   string
+	Audience  string
+	IssuedAt  time.Time
+	ExpiresAt time.Time
+	Duration  time.Duration
+	CSRF      string
 }
 
 type myCustomClaims struct {
@@ -25,13 +28,11 @@ type myCustomClaims struct {
 
 // Encode encodes and signs a JWT token.
 func Encode(t *Token, secret []byte) (string, error) {
-
-	now := time.Now()
 	claims := myCustomClaims{
 		CSRF: t.CSRF,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: now.Add(t.Duration).Unix(),
-			IssuedAt:  now.Unix(),
+			ExpiresAt: t.ExpiresAt.Unix(),
+			IssuedAt:  t.IssuedAt.Unix(),
 			Issuer:    t.Issuer,
 			Subject:   t.Subject,
 			Id:        t.ID,

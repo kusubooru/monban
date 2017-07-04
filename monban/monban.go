@@ -10,12 +10,6 @@ import (
 	"github.com/kusubooru/shimmie"
 )
 
-const (
-	defaultMonbanIssuer         = "monban"
-	defaultAccessTokenDuration  = 15 * time.Minute
-	defaultRefreshTokenDuration = 72 * time.Hour
-)
-
 var (
 	// ErrWrongCredentials is returned when credentials do not match.
 	ErrWrongCredentials = errors.New("wrong username or password")
@@ -23,31 +17,50 @@ var (
 	ErrInvalidToken = errors.New("invalid token")
 )
 
-// Token is the result of successful authentication and contains access and
+// Whitelist describes the operations needed to keep refresh tokens in a
+// "whitelist" session storage. If a refresh token exists in the storage and
+// assuming it is not expired then it is considered valid.
+//
+// Reap should run every second to clean up expired refresh tokens assuming the
+// whitelist implementation (such as BoltDB) does not support auto expiration
+// of values. Reap is meant to be called manually, once, on a separate
+// goroutine at the start of the program.
+type Whitelist interface {
+	GetToken(tokenID string) (*jwt.Token, error)
+	PutToken(tokenID string, t *jwt.Token) error
+	Reap(time.Duration) error
+	Close() error
+}
+
+// Grant is the result of successful authentication and contains access and
 // refresh tokens.
-type Token struct {
+type Grant struct {
 	Access  string
 	Refresh string
 }
 
 // AuthService specifies the operations needed for authentication.
 type AuthService interface {
-	Login(username, password string) (*Token, error)
-	Refresh(refreshToken string) (*Token, error)
+	Login(username, password string) (*Grant, error)
+	Refresh(refreshToken string) (*Grant, error)
 }
 
 type authService struct {
-	shimmie shimmie.Store
-	secret  string
+	shimmie   shimmie.Store
+	secret    string
+	whitelist Whitelist
+	accTokDur time.Duration
+	refTokDur time.Duration
+	issuer    string
 }
 
 // NewAuthService should be used for creating a new AuthService by providing a
 // shimmie Store and a secret.
-func NewAuthService(s shimmie.Store, secret string) AuthService {
-	return &authService{shimmie: s, secret: secret}
+func NewAuthService(s shimmie.Store, wl Whitelist, accTokDur, refTokDur time.Duration, issuer, secret string) AuthService {
+	return &authService{shimmie: s, secret: secret, whitelist: wl, accTokDur: accTokDur, refTokDur: refTokDur, issuer: issuer}
 }
 
-func (s *authService) Login(username, password string) (*Token, error) {
+func (s *authService) Login(username, password string) (*Grant, error) {
 	if username == "" || password == "" {
 		return nil, ErrWrongCredentials
 	}
@@ -60,7 +73,7 @@ func (s *authService) Login(username, password string) (*Token, error) {
 		}
 		return nil, fmt.Errorf("verify failed: %v", err)
 	}
-	token, err := createTokens(defaultMonbanIssuer, defaultAccessTokenDuration, defaultRefreshTokenDuration, s.secret)
+	token, err := s.createTokens(s.issuer)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +81,7 @@ func (s *authService) Login(username, password string) (*Token, error) {
 	return token, nil
 }
 
-func (s *authService) Refresh(refreshToken string) (*Token, error) {
+func (s *authService) Refresh(refreshToken string) (*Grant, error) {
 	if refreshToken == "" {
 		return nil, ErrInvalidToken
 	}
@@ -84,31 +97,31 @@ func (s *authService) Refresh(refreshToken string) (*Token, error) {
 		return nil, ErrInvalidToken
 	}
 
-	ok := verifyToken(tok)
+	ok := s.verifyToken(tok)
 	if !ok {
 		return nil, ErrInvalidToken
 	}
 
 	// TODO: Check db
 
-	token, err := createTokens(defaultMonbanIssuer, defaultAccessTokenDuration, defaultRefreshTokenDuration, s.secret)
+	token, err := s.createTokens(s.issuer)
 	if err != nil {
 		return nil, err
 	}
 	return token, nil
 }
 
-func verifyToken(t *jwt.Token) bool {
-	if t.Issuer != defaultMonbanIssuer {
+func (s *authService) verifyToken(t *jwt.Token) bool {
+	if t.Issuer != s.issuer {
 		return false
 	}
-	if t.Duration != defaultRefreshTokenDuration {
+	if t.Duration != s.refTokDur {
 		return false
 	}
 	return true
 }
 
-func createTokens(issuer string, accessTokenDuration, refreshTokenDuration time.Duration, secret string) (*Token, error) {
+func (s *authService) createTokens(issuer string) (*Grant, error) {
 	// Create CSRF token.
 	// TODO: Is CSRF token needed?
 	csrfToken, err := csrf.NewToken()
@@ -116,16 +129,21 @@ func createTokens(issuer string, accessTokenDuration, refreshTokenDuration time.
 		return nil, fmt.Errorf("CSRF token creation failed: %v", err)
 	}
 
+	// get current time
+	now := time.Now()
+
 	// Create Access token.
 	// TODO: Specify claims.
 	userID := jwt.NewUUID()
 	accessToken := &jwt.Token{
-		Subject:  userID,
-		Issuer:   issuer,
-		Duration: accessTokenDuration,
-		CSRF:     csrfToken,
+		Subject:   userID,
+		Issuer:    issuer,
+		Duration:  s.accTokDur,
+		CSRF:      csrfToken,
+		ExpiresAt: now.Add(s.accTokDur),
+		IssuedAt:  now,
 	}
-	signedAccessToken, err := jwt.Encode(accessToken, []byte(secret))
+	signedAccessToken, err := jwt.Encode(accessToken, []byte(s.secret))
 	if err != nil {
 		return nil, fmt.Errorf("access token creation failed: %v", err)
 	}
@@ -134,22 +152,27 @@ func createTokens(issuer string, accessTokenDuration, refreshTokenDuration time.
 	// TODO: Maybe use simple token?
 	refreshTokenID := jwt.NewUUID()
 	refreshToken := &jwt.Token{
-		ID:       refreshTokenID,
-		Subject:  userID,
-		Issuer:   issuer,
-		Duration: refreshTokenDuration,
-		CSRF:     csrfToken,
+		ID:        refreshTokenID,
+		Subject:   userID,
+		Issuer:    issuer,
+		Duration:  s.refTokDur,
+		CSRF:      csrfToken,
+		ExpiresAt: now.Add(s.refTokDur),
+		IssuedAt:  now,
 	}
-	signedRefreshToken, err := jwt.Encode(refreshToken, []byte(secret))
+	signedRefreshToken, err := jwt.Encode(refreshToken, []byte(s.secret))
 	if err != nil {
 		return nil, fmt.Errorf("refresh token creation failed: %v", err)
 	}
 
 	// TODO: Store refreshTokenID or simple token on cache/redis/db.
+	if err := s.whitelist.PutToken(refreshToken.ID, refreshToken); err != nil {
+		return nil, err
+	}
 
-	token := &Token{
+	grant := &Grant{
 		Access:  signedAccessToken,
 		Refresh: signedRefreshToken,
 	}
-	return token, nil
+	return grant, nil
 }

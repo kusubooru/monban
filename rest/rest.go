@@ -20,8 +20,8 @@ func (fn handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if isInternal(err) {
 				log.Println(err)
 			}
-			if err := json.NewEncoder(w).Encode(e); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+			if eerr := json.NewEncoder(w).Encode(e); err != nil {
+				http.Error(w, eerr.Error(), http.StatusInternalServerError)
 			}
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -110,7 +110,7 @@ func (s *server) handleRefresh(w http.ResponseWriter, r *http.Request) error {
 		}
 		return E(err, "refresh failed", http.StatusInternalServerError)
 	}
-	resp := &loginResp{AccessToken: tok.Access, RefreshToken: tok.Refresh}
+	resp := &refreshResp{AccessToken: tok.Access, RefreshToken: tok.Refresh}
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
 		return E(err, "refresh response encode failed", http.StatusInternalServerError)
 	}

@@ -73,7 +73,7 @@ func (s *authService) Login(username, password string) (*Grant, error) {
 		}
 		return nil, fmt.Errorf("verify failed: %v", err)
 	}
-	token, err := s.createTokens(s.issuer)
+	token, err := s.createTokens()
 	if err != nil {
 		return nil, err
 	}
@@ -104,7 +104,7 @@ func (s *authService) Refresh(refreshToken string) (*Grant, error) {
 
 	// TODO: Check db
 
-	token, err := s.createTokens(s.issuer)
+	token, err := s.createTokens()
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (s *authService) verifyToken(t *jwt.Token) bool {
 	return true
 }
 
-func (s *authService) createTokens(issuer string) (*Grant, error) {
+func (s *authService) createTokens() (*Grant, error) {
 	// Create CSRF token.
 	// TODO: Is CSRF token needed?
 	csrfToken, err := csrf.NewToken()
@@ -137,7 +137,7 @@ func (s *authService) createTokens(issuer string) (*Grant, error) {
 	userID := jwt.NewUUID()
 	accessToken := &jwt.Token{
 		Subject:   userID,
-		Issuer:    issuer,
+		Issuer:    s.issuer,
 		Duration:  s.accTokDur,
 		CSRF:      csrfToken,
 		ExpiresAt: now.Add(s.accTokDur),
@@ -154,7 +154,7 @@ func (s *authService) createTokens(issuer string) (*Grant, error) {
 	refreshToken := &jwt.Token{
 		ID:        refreshTokenID,
 		Subject:   userID,
-		Issuer:    issuer,
+		Issuer:    s.issuer,
 		Duration:  s.refTokDur,
 		CSRF:      csrfToken,
 		ExpiresAt: now.Add(s.refTokDur),

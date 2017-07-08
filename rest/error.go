@@ -17,7 +17,7 @@ func isInternal(err error) bool {
 
 // Error is the HTTP error returned from the Monban API.
 type Error struct {
-	err     error
+	err     error  `json:"-"`
 	Message string `json:"message"`
 	Code    int    `json:"code"`
 }

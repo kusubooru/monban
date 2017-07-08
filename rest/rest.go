@@ -20,8 +20,8 @@ func (fn handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if isInternal(err) {
 				log.Println(err)
 			}
-			if eerr := json.NewEncoder(w).Encode(e); err != nil {
-				http.Error(w, eerr.Error(), http.StatusInternalServerError)
+			if encErr := json.NewEncoder(w).Encode(e); encErr != nil {
+				http.Error(w, encErr.Error(), http.StatusInternalServerError)
 			}
 		default:
 			http.Error(w, err.Error(), http.StatusInternalServerError)

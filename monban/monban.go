@@ -131,7 +131,7 @@ func (s *authService) verifyToken(t, storedToken *jwt.Token) bool {
 
 func (s *authService) createTokens() (*Grant, error) {
 	// Create CSRF token.
-	// TODO: Is CSRF token needed?
+	// TODO(jin): Is CSRF token needed?
 	csrfToken, err := csrf.NewToken()
 	if err != nil {
 		return nil, fmt.Errorf("CSRF token creation failed: %v", err)
@@ -141,7 +141,7 @@ func (s *authService) createTokens() (*Grant, error) {
 	now := time.Now()
 
 	// Create Access token.
-	// TODO: Specify claims.
+	// TODO(jin): Specify claims.
 	userID := jwt.NewUUID()
 	accessToken := &jwt.Token{
 		Subject:   userID,
@@ -157,7 +157,7 @@ func (s *authService) createTokens() (*Grant, error) {
 	}
 
 	// Create Refresh token.
-	// TODO: Maybe use simple token?
+	// TODO(jin): Maybe use simple token?
 	refreshTokenID := jwt.NewUUID()
 	refreshToken := &jwt.Token{
 		ID:        refreshTokenID,
@@ -173,7 +173,7 @@ func (s *authService) createTokens() (*Grant, error) {
 		return nil, fmt.Errorf("refresh token creation failed: %v", err)
 	}
 
-	// TODO: Store refreshTokenID or simple token on cache/redis/db.
+	// TODO(jin): Store refreshTokenID or simple token on cache/redis/db.
 	if err := s.whitelist.PutToken(refreshToken.ID, refreshToken); err != nil {
 		return nil, err
 	}

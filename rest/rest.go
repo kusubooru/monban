@@ -52,7 +52,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.handlers.ServeHTTP(w, r)
 }
 
-// TODO: Should username and password be sent via headers?
+// TODO(jin): Should username and password be sent via headers?
 
 type loginReq struct {
 	Username string `json:"username"`

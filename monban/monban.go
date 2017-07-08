@@ -3,6 +3,7 @@ package monban
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/kusubooru/monban/jwt"
@@ -97,12 +98,16 @@ func (s *authService) Refresh(refreshToken string) (*Grant, error) {
 		return nil, ErrInvalidToken
 	}
 
-	ok := s.verifyToken(tok)
+	// Check that token exists in whitelist.
+	wltok, err := s.whitelist.GetToken(tok.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	ok := s.verifyToken(tok, wltok)
 	if !ok {
 		return nil, ErrInvalidToken
 	}
-
-	// TODO: Check db
 
 	token, err := s.createTokens()
 	if err != nil {
@@ -111,14 +116,17 @@ func (s *authService) Refresh(refreshToken string) (*Grant, error) {
 	return token, nil
 }
 
-func (s *authService) verifyToken(t *jwt.Token) bool {
+func (s *authService) verifyToken(t, storedToken *jwt.Token) bool {
 	if t.Issuer != s.issuer {
 		return false
 	}
 	if t.Duration != s.refTokDur {
 		return false
 	}
-	return true
+	if reflect.DeepEqual(t, storedToken) {
+		return true
+	}
+	return false
 }
 
 func (s *authService) createTokens() (*Grant, error) {

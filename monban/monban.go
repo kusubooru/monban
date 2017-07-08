@@ -140,8 +140,8 @@ func (s *authService) createTokens() (*Grant, error) {
 		Issuer:    s.issuer,
 		Duration:  s.accTokDur,
 		CSRF:      csrfToken,
-		ExpiresAt: now.Add(s.accTokDur),
-		IssuedAt:  now,
+		ExpiresAt: now.Add(s.accTokDur).Unix(),
+		IssuedAt:  now.Unix(),
 	}
 	signedAccessToken, err := jwt.Encode(accessToken, []byte(s.secret))
 	if err != nil {
@@ -157,8 +157,8 @@ func (s *authService) createTokens() (*Grant, error) {
 		Issuer:    s.issuer,
 		Duration:  s.refTokDur,
 		CSRF:      csrfToken,
-		ExpiresAt: now.Add(s.refTokDur),
-		IssuedAt:  now,
+		ExpiresAt: now.Add(s.refTokDur).Unix(),
+		IssuedAt:  now.Unix(),
 	}
 	signedRefreshToken, err := jwt.Encode(refreshToken, []byte(s.secret))
 	if err != nil {

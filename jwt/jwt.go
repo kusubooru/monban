@@ -15,8 +15,8 @@ type Token struct {
 	Issuer    string
 	Subject   string
 	Audience  string
-	IssuedAt  time.Time
-	ExpiresAt time.Time
+	IssuedAt  int64
+	ExpiresAt int64
 	Duration  time.Duration
 	CSRF      string
 }
@@ -31,8 +31,8 @@ func Encode(t *Token, secret []byte) (string, error) {
 	claims := myCustomClaims{
 		CSRF: t.CSRF,
 		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: t.ExpiresAt.Unix(),
-			IssuedAt:  t.IssuedAt.Unix(),
+			ExpiresAt: t.ExpiresAt,
+			IssuedAt:  t.IssuedAt,
 			Issuer:    t.Issuer,
 			Subject:   t.Subject,
 			Id:        t.ID,
@@ -80,15 +80,17 @@ func Decode(t string, secret []byte) (*Token, bool, error) {
 	}
 	sc := claims.StandardClaims
 	issuedAt := time.Unix(sc.IssuedAt, 0)
-	expiredAt := time.Unix(sc.ExpiresAt, 0)
-	duration := expiredAt.Sub(issuedAt)
+	expiresAt := time.Unix(sc.ExpiresAt, 0)
+	duration := expiresAt.Sub(issuedAt)
 
 	token := &Token{
-		CSRF:     claims.CSRF,
-		ID:       sc.Id,
-		Issuer:   sc.Issuer,
-		Subject:  sc.Subject,
-		Duration: duration,
+		CSRF:      claims.CSRF,
+		ID:        sc.Id,
+		Issuer:    sc.Issuer,
+		Subject:   sc.Subject,
+		Duration:  duration,
+		IssuedAt:  sc.IssuedAt,
+		ExpiresAt: sc.ExpiresAt,
 	}
 	return token, parsedToken.Valid, nil
 }

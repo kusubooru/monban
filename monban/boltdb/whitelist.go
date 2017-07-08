@@ -39,7 +39,7 @@ func (db *whitelist) PutToken(tokenID string, tok *jwt.Token) error {
 		// Write the time the token was issued at as the first 8 bytes of the
 		// value. This is useful to easier find out which tokens are expired
 		// and delete them.
-		time := tok.IssuedAt.Unix()
+		time := tok.IssuedAt
 		if time < 0 {
 			return fmt.Errorf("token has negative time")
 		}

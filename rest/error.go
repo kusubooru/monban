@@ -25,7 +25,7 @@ type Error struct {
 // Internal implements the Internal interface and allows to inspect if the
 // error is internal.
 func (e *Error) Internal() bool { return e.Code == http.StatusInternalServerError }
-func (e *Error) Error() string  { return fmt.Sprintf("%d %v: %v", e.Code, e.Message, e.err.Error()) }
+func (e *Error) Error() string  { return fmt.Sprintf("%d %v: %v", e.Code, e.Message, e.err) }
 
 // E constructs an Error and should be used as a shorthand.
 func E(err error, message string, code int) error {

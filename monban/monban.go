@@ -69,7 +69,7 @@ func (s *authService) Login(username, password string) (*Grant, error) {
 	// Verify User.
 	_, err := s.shimmie.Verify(username, password)
 	if err != nil {
-		if err != shimmie.ErrNotFound && err != shimmie.ErrWrongCredentials {
+		if err == shimmie.ErrNotFound || err == shimmie.ErrWrongCredentials {
 			return nil, ErrWrongCredentials
 		}
 		return nil, fmt.Errorf("verify failed: %v", err)

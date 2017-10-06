@@ -17,8 +17,6 @@ func (db *MonbanDB) createTables() error {
 func (db *MonbanDB) insertAnonymous() error {
 	_, err := db.GetUser("Anonymous")
 	switch err {
-	default:
-		return err
 	case monban.ErrNotFound:
 		// Insert anonymous user.
 		u := &monban.User{
@@ -30,6 +28,9 @@ func (db *MonbanDB) insertAnonymous() error {
 		if err := db.CreateUser(u); err != nil {
 			return err
 		}
+	case nil:
+	default:
+		return err
 	}
 	return nil
 }

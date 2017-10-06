@@ -121,7 +121,12 @@ func (s *authService) Login(username, password string) (*Grant, error) {
 		if err := s.migrateUser(username, password); err != nil {
 			return nil, fmt.Errorf("user migration failed: %v", err)
 		}
+		u, err = s.users.GetUser(username)
+		if err != nil {
+			return nil, fmt.Errorf("error getting migrated user: %v", err)
+		}
 	case nil:
+	default:
 		return nil, fmt.Errorf("get user: %v", err)
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(u.Pass), []byte(password)); err != nil {

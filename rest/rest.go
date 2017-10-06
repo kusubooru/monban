@@ -103,6 +103,10 @@ func (s *server) handleRefresh(w http.ResponseWriter, r *http.Request) error {
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		return E(err, "expecting refresh token", http.StatusBadRequest)
 	}
+	if req.RefreshToken == "" {
+		return E(nil, "expecting refresh_token in request", http.StatusBadRequest)
+	}
+
 	tok, err := s.auth.Refresh(req.RefreshToken)
 	if err != nil {
 		if err == monban.ErrInvalidToken {

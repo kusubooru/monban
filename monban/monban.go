@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"time"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/kusubooru/monban/jwt"
 	"github.com/kusubooru/monban/jwt/csrf"
 	"github.com/kusubooru/shimmie"
@@ -16,6 +18,8 @@ var (
 	ErrWrongCredentials = errors.New("wrong username or password")
 	// ErrInvalidToken is returned when a refresh token is invalid.
 	ErrInvalidToken = errors.New("invalid token")
+	// ErrNotFound is returned whenever an item does not exist in the database.
+	ErrNotFound = errors.New("item not found")
 )
 
 // Whitelist describes the operations needed to keep refresh tokens in a
@@ -46,7 +50,25 @@ type AuthService interface {
 	Refresh(refreshToken string) (*Grant, error)
 }
 
+type User struct {
+	ID      int64
+	Name    string
+	Pass    string
+	Email   string
+	Class   string
+	Admin   bool
+	Created time.Time
+}
+
+// UserStore specifies the operations needed for storing and retrieving Monban
+// users.
+type UserStore interface {
+	CreateUser(u *User) error
+	GetUser(name string) (*User, error)
+}
+
 type authService struct {
+	users     UserStore
 	shimmie   shimmie.Store
 	secret    string
 	whitelist Whitelist
@@ -57,8 +79,25 @@ type authService struct {
 
 // NewAuthService should be used for creating a new AuthService by providing a
 // shimmie Store and a secret.
-func NewAuthService(s shimmie.Store, wl Whitelist, accTokDur, refTokDur time.Duration, issuer, secret string) AuthService {
-	return &authService{shimmie: s, secret: secret, whitelist: wl, accTokDur: accTokDur, refTokDur: refTokDur, issuer: issuer}
+func NewAuthService(
+	userStore UserStore,
+	shimmieDB shimmie.Store,
+	wl Whitelist,
+	accTokDur time.Duration,
+	refTokDur time.Duration,
+	issuer string,
+	secret string,
+) AuthService {
+	s := &authService{
+		users:     userStore,
+		shimmie:   shimmieDB,
+		secret:    secret,
+		whitelist: wl,
+		accTokDur: accTokDur,
+		refTokDur: refTokDur,
+		issuer:    issuer,
+	}
+	return s
 }
 
 func (s *authService) Login(username, password string) (*Grant, error) {
@@ -66,20 +105,57 @@ func (s *authService) Login(username, password string) (*Grant, error) {
 		return nil, ErrWrongCredentials
 	}
 
-	// Verify User.
-	_, err := s.shimmie.Verify(username, password)
-	if err != nil {
+	u, err := s.users.GetUser(username)
+	switch err {
+	case ErrNotFound:
+		// Verify User from shimmie.
+		_, err := s.shimmie.Verify(username, password)
 		if err == shimmie.ErrNotFound || err == shimmie.ErrWrongCredentials {
 			return nil, ErrWrongCredentials
 		}
-		return nil, fmt.Errorf("verify failed: %v", err)
+		if err != nil {
+			return nil, fmt.Errorf("verify failed: %v", err)
+		}
+		// Credentials are correct. Migrate user.
+		if err := s.migrateUser(username, password); err != nil {
+			return nil, fmt.Errorf("user migration failed: %v", err)
+		}
+	case nil:
+		return nil, fmt.Errorf("get user: %v", err)
 	}
+	if err := bcrypt.CompareHashAndPassword([]byte(u.Pass), []byte(password)); err != nil {
+		return nil, ErrWrongCredentials
+	}
+
 	token, err := s.createTokens()
 	if err != nil {
 		return nil, err
 	}
 
 	return token, nil
+}
+
+func (s *authService) migrateUser(username, password string) error {
+	old, err := s.shimmie.GetUserByName(username)
+	if err == shimmie.ErrNotFound {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	u := &User{
+		Name:  username,
+		Pass:  password,
+		Email: old.Email,
+		Class: old.Class,
+	}
+	if old.Admin == "Y" {
+		u.Admin = true
+	}
+	if s.users.CreateUser(u); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *authService) Refresh(refreshToken string) (*Grant, error) {

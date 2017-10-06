@@ -58,6 +58,7 @@ type User struct {
 	Class   string
 	Admin   bool
 	Created time.Time
+	Joined  time.Time
 }
 
 // UserStore specifies the operations needed for storing and retrieving Monban
@@ -148,6 +149,9 @@ func (s *authService) migrateUser(username, password string) error {
 		Pass:  password,
 		Email: old.Email,
 		Class: old.Class,
+	}
+	if old.JoinDate != nil {
+		u.Joined = *old.JoinDate
 	}
 	if old.Admin == "Y" {
 		u.Admin = true

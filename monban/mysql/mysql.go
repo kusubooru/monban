@@ -32,6 +32,9 @@ func OpenMonbanDB(dataSource string) (*MonbanDB, error) {
 	if err := d.prepareStatements(); err != nil {
 		return nil, fmt.Errorf("error preparing statements: %v", err)
 	}
+	if err := d.insertAnonymous(); err != nil {
+		return nil, fmt.Errorf("error inserting anonymous user: %v", err)
+	}
 	return d, nil
 }
 

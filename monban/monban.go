@@ -25,16 +25,9 @@ var (
 // Whitelist describes the operations needed to keep refresh tokens in a
 // "whitelist" session storage. If a refresh token exists in the storage and
 // assuming it is not expired then it is considered valid.
-//
-// Reap should run every second to clean up expired refresh tokens assuming the
-// whitelist implementation (such as BoltDB) does not support auto expiration
-// of values. Reap is meant to be called manually, once, on a separate
-// goroutine at the start of the program.
 type Whitelist interface {
 	GetToken(tokenID string) (*jwt.Token, error)
 	PutToken(tokenID string, t *jwt.Token) error
-	Reap(time.Duration) error
-	Close() error
 }
 
 // Grant is the result of successful authentication and contains access and

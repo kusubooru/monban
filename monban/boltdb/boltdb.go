@@ -5,18 +5,17 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/kusubooru/monban/monban"
 )
 
 const (
 	whitelistBucket = "whitelist"
 )
 
-type whitelist struct {
+type Whitelist struct {
 	*bolt.DB
 }
 
-func (db *whitelist) Close() error {
+func (db *Whitelist) Close() error {
 	return db.DB.Close()
 }
 
@@ -41,7 +40,7 @@ func openBolt(file string) *bolt.DB {
 // NewWhitelist opens the bolt database file and returns an implementation for
 // monban.Whitelist. The bolt database file will be created if it does not
 // exist.
-func NewWhitelist(boltFile string) monban.Whitelist {
+func NewWhitelist(boltFile string) *Whitelist {
 	db := openBolt(boltFile)
-	return &whitelist{db}
+	return &Whitelist{db}
 }

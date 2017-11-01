@@ -32,7 +32,7 @@ func TestWhitelist(t *testing.T) {
 	defer teardown(whitelist, f)
 
 	tokenID := "123"
-	now := time.Now()
+	now := time.Now().Unix()
 	tok := &jwt.Token{
 		ID:       tokenID,
 		IssuedAt: now,

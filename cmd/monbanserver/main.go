@@ -90,7 +90,7 @@ func main() {
 	}
 }
 
-func closeOnSignal(monbanDB *mysql.MonbanDB, wl monban.Whitelist) {
+func closeOnSignal(monbanDB *mysql.MonbanDB, wl *boltdb.Whitelist) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 	go func() {
@@ -107,7 +107,7 @@ func closeOnSignal(monbanDB *mysql.MonbanDB, wl monban.Whitelist) {
 	}()
 }
 
-func startWhitelistReap(wl monban.Whitelist, duration time.Duration) {
+func startWhitelistReap(wl *boltdb.Whitelist, duration time.Duration) {
 	go func() {
 		if err := wl.Reap(duration); err != nil {
 			log.Printf("whitelist reap failed: %v", err)

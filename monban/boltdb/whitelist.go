@@ -11,7 +11,7 @@ import (
 	"github.com/kusubooru/monban/jwt"
 )
 
-func (db *whitelist) GetToken(tokenID string) (*jwt.Token, error) {
+func (db *Whitelist) GetToken(tokenID string) (*jwt.Token, error) {
 	tok := new(jwt.Token)
 	buf := bytes.Buffer{}
 	err := db.View(func(tx *bolt.Tx) error {
@@ -32,7 +32,7 @@ func (db *whitelist) GetToken(tokenID string) (*jwt.Token, error) {
 	return tok, err
 }
 
-func (db *whitelist) PutToken(tokenID string, tok *jwt.Token) error {
+func (db *Whitelist) PutToken(tokenID string, tok *jwt.Token) error {
 	err := db.Update(func(tx *bolt.Tx) error {
 		buf := bytes.Buffer{}
 
@@ -77,7 +77,11 @@ func itob(v int64) []byte {
 //
 // As written by Ben Johnson:
 // https://gist.github.com/benbjohnson/a3e9e35f73dae8d15c49
-func (db whitelist) Reap(duration time.Duration) error {
+//
+// Reap should run every second to clean up expired refresh tokens. Reap is
+// meant to be called manually, only once and on a separate goroutine at the
+// start of the program.
+func (db Whitelist) Reap(duration time.Duration) error {
 	// The batch size represents how many sessions we'll check at
 	// a time for a given transaction. We don't want to check all the
 	// sessions every time because that would lock the database for

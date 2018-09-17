@@ -2,10 +2,13 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/kusubooru/monban/monban"
@@ -16,20 +19,29 @@ import (
 )
 
 var (
-	httpAddr           = flag.String("http", ":8080", "HTTP listen address")
-	driverName         = flag.String("driver", "mysql", "monban database driver")
-	dataSourceName     = flag.String("datasource", "", "monban database data source")
-	shimmieDriver      = flag.String("shimmiedriver", "mysql", "shimmie database driver")
-	shimmieDataSource  = flag.String("shimmiedatasource", "", "shimmie database data source")
-	secret             = flag.String("secret", "", "secret used to sign JWT tokens")
-	boltFile           = flag.String("boltfile", "monban.db", "BoltDB database file to store token whitelist")
-	monbanIssuer       = flag.String("issuer", "monban", "will appear as the issuer field for created tokens")
-	accessTokenMinutes = flag.Int64("atmins", 15, "minutes for access token to expire")
-	refreshTokenHours  = flag.Int64("rthours", 72, "hours for the refresh token to expire")
+	theVersion = "devel"
 )
 
 func main() {
+	var (
+		httpAddr           = flag.String("http", ":8080", "HTTP listen address")
+		dataSourceName     = flag.String("datasource", "", "monban database data source")
+		shimmieDriver      = flag.String("shimmiedriver", "mysql", "shimmie database driver")
+		shimmieDataSource  = flag.String("shimmiedatasource", "", "shimmie database data source")
+		secret             = flag.String("secret", "", "secret used to sign JWT tokens")
+		boltFile           = flag.String("boltfile", "monban.db", "BoltDB database file to store token whitelist")
+		monbanIssuer       = flag.String("issuer", "monban", "will appear as the issuer field for created tokens")
+		accessTokenMinutes = flag.Int64("atmins", 15, "minutes for access token to expire")
+		refreshTokenHours  = flag.Int64("rthours", 72, "hours for the refresh token to expire")
+		showVersion        = flag.Bool("v", false, "print program version")
+	)
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("%s %s (runtime: %s)\n", filepath.Base(os.Args[0]), theVersion, runtime.Version())
+		return
+	}
+
 	if *secret == "" {
 		log.Fatalln("No secret specified, exiting...")
 	}

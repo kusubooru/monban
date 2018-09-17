@@ -136,11 +136,12 @@ func (s *authService) Login(username, password string) (*Grant, error) {
 
 func (s *authService) migrateUser(username, password string) error {
 	old, err := s.shimmie.GetUserByName(username)
-	if err == shimmie.ErrNotFound {
+	switch err {
+	case shimmie.ErrNotFound:
 		return ErrNotFound
-	}
-	if err != nil {
+	default:
 		return err
+	case nil:
 	}
 	u := &User{
 		Name:  username,

@@ -40,8 +40,8 @@ type server struct {
 func NewServer(auth monban.AuthService) http.Handler {
 	s := &server{mux: http.NewServeMux(), auth: auth}
 	s.handlers = gziphandler.GzipHandler(allowCORS(s.mux))
-	s.mux.Handle("/api/v0/auth/login", handler(s.handleLogin))
-	s.mux.Handle("/api/v0/auth/refresh", handler(s.handleRefresh))
+	s.mux.Handle("/login", handler(s.handleLogin))
+	s.mux.Handle("/refresh", handler(s.handleRefresh))
 	return s
 }
 

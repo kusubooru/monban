@@ -34,6 +34,10 @@ func main() {
 		accessTokenMinutes = flag.Int64("atmins", 15, "minutes for access token to expire")
 		refreshTokenHours  = flag.Int64("rthours", 72, "hours for the refresh token to expire")
 		showVersion        = flag.Bool("v", false, "print program version")
+		certFile           = flag.String("tlscert", "", "TLS public key in PEM format.  Must be used together with -tlskey")
+		keyFile            = flag.String("tlskey", "", "TLS private key in PEM format. Must be used together with -tlscert")
+		// Set after flag parsing based on certFile & keyFile.
+		useTLS bool
 	)
 	flag.Parse()
 
@@ -97,8 +101,15 @@ func main() {
 	handlers := rest.NewServer(authService)
 
 	closeOnSignal(monbanDB, wl)
-	if err := http.ListenAndServe(*httpAddr, handlers); err != nil {
-		log.Println("server stopped:", err)
+
+	useTLS = *certFile != "" && *keyFile != ""
+	if useTLS {
+		err = http.ListenAndServeTLS(*httpAddr, *certFile, *keyFile, handlers)
+	} else {
+		err = http.ListenAndServe(*httpAddr, handlers)
+	}
+	if err != nil {
+		log.Fatalf("Server stopped: %v", err)
 	}
 }
 
